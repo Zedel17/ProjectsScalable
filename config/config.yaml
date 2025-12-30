@@ -1,0 +1,63 @@
+# Project Configuration
+
+# Hopsworks settings
+hopsworks:
+  project_name: "qqq_prediction"
+
+# Data settings
+data:
+  start_date: "2023-01-01"  # 2 years of historical data
+  end_date: "2025-12-30"
+
+  # Tickers
+  target_ticker: "QQQ"
+  sector_ticker: "XLK"  # Technology sector ETF
+  volatility_ticker: "^VIX"
+
+  # FRED series
+  fred_series:
+    treasury_yield: "DGS10"  # 10-year Treasury yield
+    cpi: "CPIAUCSL"          # Consumer Price Index
+
+  # NewsAPI settings
+  news:
+    query: "QQQ OR Nasdaq OR technology stocks OR big tech"
+    max_articles_per_day: 100
+    language: "en"
+
+# Feature engineering settings
+features:
+  # Technical indicators
+  technical:
+    return_lags: [1, 2, 3, 5]
+    volatility_windows: [5, 10, 20]
+    rsi_period: 14
+    ma_periods: [10, 20, 50]
+
+  # Sector features
+  sector:
+    correlation_windows: [20, 60]
+
+  # Sentiment aggregation
+  sentiment:
+    aggregations: ["mean", "std", "count"]
+
+# Model settings
+model:
+  # Train/validation split
+  validation_size: 0.2
+  test_size: 0.1
+
+  # XGBoost parameters
+  xgboost:
+    regression:
+      n_estimators: 100
+      max_depth: 5
+      learning_rate: 0.1
+      random_state: 42
+
+    classification:
+      n_estimators: 100
+      max_depth: 5
+      learning_rate: 0.1
+      random_state: 42
