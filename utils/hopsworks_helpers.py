@@ -81,28 +81,52 @@ def create_feature_group(fs, name: str, df, primary_key: list, description: str 
     print(f"\n{'='*60}")
     print(f"Creating feature group: {name}")
     print(f"{'='*60}")
-    print(f"Data shape: {df.shape}")
+    print(f"Data shape (before deduplication): {df.shape}")
+
+    # Deduplicate based on primary key
+    initial_count = len(df)
+    df = df.drop_duplicates(subset=primary_key, keep='first')
+    duplicates_removed = initial_count - len(df)
+
+    if duplicates_removed > 0:
+        print(f"⚠️  Removed {duplicates_removed} duplicate records based on primary_key: {primary_key}")
+
+    print(f"Data shape (after deduplication): {df.shape}")
     print(f"Columns: {df.columns.tolist()}")
     print(f"Data types:\n{df.dtypes}")
 
     try:
         # Try to get existing feature group
         fg = fs.get_feature_group(name=name, version=version)
+        if fg is None:
+            raise ValueError(f"get_feature_group returned None for existing '{name}'")
         print(f"✓ Feature group '{name}' already exists (version {version})")
+        print(f"  Feature group object type: {type(fg)}")
         print(f"  Deleting existing data and re-inserting...")
 
-    except Exception:
+    except Exception as e:
         # Create new feature group
         print(f"Creating new feature group '{name}'...")
-        fg = fs.create_feature_group(
-            name=name,
-            version=version,
-            description=description,
-            primary_key=primary_key,
-            event_time='date',
-            online_enabled=False
-        )
-        print(f"✓ Feature group created")
+        try:
+            fg = fs.create_feature_group(
+                name=name,
+                version=version,
+                description=description,
+                primary_key=primary_key,
+                event_time='date',
+                online_enabled=False
+            )
+            if fg is None:
+                raise ValueError(f"create_feature_group returned None for '{name}'")
+            print(f"✓ Feature group created")
+        except Exception as create_error:
+            print(f"\n❌ ERROR: Failed to create feature group '{name}'")
+            print(f"Error details: {create_error}")
+            raise
+
+    # Ensure fg is not None before inserting
+    if fg is None:
+        raise ValueError(f"Feature group '{name}' is None - cannot insert data")
 
     # Insert data with explicit write_options
     print(f"\nInserting {len(df)} rows...")
@@ -128,6 +152,55 @@ def create_feature_group(fs, name: str, df, primary_key: list, description: str 
     print(f"   Check the Hopsworks UI to see the data in the feature group")
     print(f"{'='*60}\n")
     return fg
+
+
+def read_feature_group_safe(fg, max_retries=3):
+    """
+    Read feature group with fallback for Arrow Flight errors.
+
+    Hopsworks free tier has Arrow Flight query service bugs that cause reads to fail
+    even though data is successfully uploaded. This function tries multiple read methods.
+
+    Args:
+        fg: Feature group object
+        max_retries: Number of retry attempts
+
+    Returns:
+        DataFrame with feature group data
+    """
+    import time
+
+    for attempt in range(max_retries):
+        try:
+            # Try standard read
+            print(f"Attempting to read feature group '{fg.name}' (attempt {attempt+1}/{max_retries})...")
+            df = fg.read()
+            print(f"✓ Successfully read {len(df)} rows")
+            return df
+
+        except Exception as e:
+            error_msg = str(e)
+
+            # Check if it's the known Arrow Flight bug
+            if "No data found" in error_msg or "Binder Error" in error_msg or "FlightServerError" in error_msg:
+                print(f"⚠️  Arrow Flight error detected: {error_msg[:100]}...")
+
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 5
+                    print(f"   Waiting {wait_time} seconds before retry...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"\n❌ CRITICAL: Cannot read feature group '{fg.name}' after {max_retries} attempts")
+                    print(f"\nPossible causes:")
+                    print(f"  1. Hopsworks free tier Arrow Flight bug (known issue)")
+                    print(f"  2. Data not yet committed (try again in a few minutes)")
+                    print(f"  3. Feature group is empty")
+                    print(f"\nWorkaround: Check Hopsworks UI to verify data exists.")
+                    print(f"If data exists in UI but can't read via Python, this is a Hopsworks limitation.")
+                    raise Exception(f"Cannot read feature group '{fg.name}' - Arrow Flight service unavailable")
+            else:
+                # Different error, re-raise
+                raise
 
 
 def get_model_registry(project=None):
