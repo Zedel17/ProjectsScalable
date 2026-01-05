@@ -6,7 +6,7 @@ hopsworks:
 
 # Data settings
 data:
-  start_date: "2023-01-01"  # 2 years of historical data
+  start_date: "2020-01-01"  # 2 years of historical data
   end_date: "2025-12-30"
 
   # Tickers
