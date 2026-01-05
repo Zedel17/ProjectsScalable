@@ -68,7 +68,11 @@ def create_feature_group(fs, name: str, df, primary_key: list, description: str 
 
     # Convert date to datetime64[ms] which Hopsworks expects
     if 'date' in df.columns:
-        df['date'] = pd.to_datetime(df['date']).astype('datetime64[ms]')
+        df['date'] = pd.to_datetime(df['date'])
+        # Remove timezone info if present
+        if hasattr(df['date'].dtype, 'tz') and df['date'].dtype.tz is not None:
+            df['date'] = df['date'].dt.tz_localize(None)
+        df['date'] = df['date'].astype('datetime64[ms]')
 
     # Ensure numeric columns are proper types
     for col in df.columns:
@@ -100,6 +104,29 @@ def create_feature_group(fs, name: str, df, primary_key: list, description: str 
         fg = fs.get_feature_group(name=name, version=version)
         if fg is None:
             raise ValueError(f"get_feature_group returned None for existing '{name}'")
+
+        # Check if schema matches
+        existing_schema = {f.name for f in fg.features}
+        new_schema = set(df.columns.tolist())
+
+        if existing_schema != new_schema:
+            print(f"⚠️  Schema mismatch detected for '{name}' v{version}")
+            print(f"   Existing columns: {sorted(existing_schema)}")
+            print(f"   New columns: {sorted(new_schema)}")
+            print(f"   Added: {sorted(new_schema - existing_schema)}")
+            print(f"   Removed: {sorted(existing_schema - new_schema)}")
+            print(f"   Creating new version to handle schema change...")
+
+            # Delete the old feature group to avoid conflicts
+            try:
+                fg.delete()
+                print(f"   Deleted old version {version}")
+            except:
+                pass
+
+            # Create new feature group with incremented version
+            raise ValueError("Schema mismatch - will create new version")
+
         print(f"✓ Feature group '{name}' already exists (version {version})")
         print(f"  Feature group object type: {type(fg)}")
         print(f"  Deleting existing data and re-inserting...")
