@@ -52,12 +52,12 @@ model:
   xgboost:
     regression:
       n_estimators: 500
-      max_depth: 2
+      max_depth: 3
       learning_rate: 0.01
       random_state: 42
 
     classification:
       n_estimators: 500
-      max_depth: 2
+      max_depth: 3
       learning_rate: 0.01
       random_state: 42

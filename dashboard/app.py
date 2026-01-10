@@ -151,36 +151,129 @@ def refresh_dashboard():
     return prediction_summary, prediction_chart, feature_chart
 
 
+# Image paths
+IMAGE_DIR = "static/images"
+
 # Create Gradio interface
-with gr.Blocks(title="QQQ Prediction Dashboard") as demo:
-    gr.Markdown("# QQQ ETF Prediction Dashboard")
-    gr.Markdown("Real-time predictions for next-day QQQ returns using XGBoost and FinBERT sentiment")
+with gr.Blocks(title="QQQ Prediction Dashboard", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("# 📈 QQQ ETF Prediction Dashboard")
+    gr.Markdown("**Real-time predictions for next-day QQQ returns** | XGBoost + FinBERT Sentiment Analysis")
 
-    with gr.Row():
-        with gr.Column(scale=1):
-            prediction_text = gr.Markdown(get_latest_prediction())
-            refresh_btn = gr.Button("🔄 Refresh Data")
+    with gr.Tabs():
+        # Tab 1: Latest Prediction (Live Data)
+        with gr.Tab("🔴 Live Prediction"):
+            gr.Markdown("## Latest Prediction from Hopsworks")
 
-        with gr.Column(scale=2):
-            feature_importance = gr.Plot(label="Feature Importance")
+            with gr.Row():
+                with gr.Column(scale=1):
+                    prediction_text = gr.Markdown(get_latest_prediction())
+                    refresh_btn = gr.Button("🔄 Refresh Data", variant="primary", size="lg")
 
-    with gr.Row():
-        prediction_chart = gr.Plot(label="Prediction History")
+                with gr.Column(scale=2):
+                    feature_importance = gr.Plot(label="Top Features Driving Latest Prediction")
 
-    # Refresh button action
-    refresh_btn.click(
-        fn=refresh_dashboard,
-        inputs=[],
-        outputs=[prediction_text, prediction_chart, feature_importance]
-    )
+            with gr.Row():
+                prediction_chart = gr.Plot(label="Prediction History (From Hopsworks)")
 
-    # Load initial data
-    demo.load(
-        fn=refresh_dashboard,
-        inputs=[],
-        outputs=[prediction_text, prediction_chart, feature_importance]
-    )
+            # Refresh button action
+            refresh_btn.click(
+                fn=refresh_dashboard,
+                inputs=[],
+                outputs=[prediction_text, prediction_chart, feature_importance]
+            )
+
+            # Load initial data
+            demo.load(
+                fn=refresh_dashboard,
+                inputs=[],
+                outputs=[prediction_text, prediction_chart, feature_importance]
+            )
+
+        # Tab 2: Performance Analysis
+        with gr.Tab("📊 Performance Analysis"):
+            gr.Markdown("## Model Performance on Last 90 Days")
+            gr.Markdown("*These visualizations show backtesting results on recent data*")
+
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown("### Predicted vs Actual Returns")
+                    gr.Markdown("**Blue** = Actual | **Orange** = Predicted")
+                    gr.Image(f"{IMAGE_DIR}/1_predicted_vs_actual.png",
+                            show_label=False)
+
+                with gr.Column():
+                    gr.Markdown("### Direction Probabilities")
+                    gr.Markdown("**Green** = Actual UP | **Red** = Actual DOWN")
+                    gr.Image(f"{IMAGE_DIR}/2_direction_probabilities.png",
+                            show_label=False)
+
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown("### Trading Strategy Performance")
+                    gr.Markdown("**Green** = Model Strategy | **Gray Dashed** = Buy & Hold")
+                    gr.Image(f"{IMAGE_DIR}/4_strategy_performance.png",
+                            show_label=False)
+
+                with gr.Column():
+                    gr.Markdown("### Confusion Matrix")
+                    gr.Markdown("Classification accuracy on direction predictions")
+                    gr.Image(f"{IMAGE_DIR}/5_confusion_matrix.png",
+                            show_label=False)
+
+        # Tab 3: Feature Analysis
+        with gr.Tab("🔍 Feature Importance"):
+            gr.Markdown("## Top Features Driving Model Predictions")
+            gr.Markdown("These are the most important features for the regression model")
+
+            gr.Image(f"{IMAGE_DIR}/3_feature_importance.png",
+                    show_label=False)
+
+            gr.Markdown("""
+            ### Top Feature Categories:
+            - **Technical Indicators**: volatility, RSI, moving average ratios
+            - **Macro Factors**: Treasury yields (DGS10), CPI inflation
+            - **Volatility Metrics**: VIX levels and changes
+            - **Sector Performance**: XLK (Tech sector) returns and correlation
+            - **News Sentiment**: FinBERT sentiment scores (positive/negative/neutral)
+            """)
+
+        # Tab 4: Complete Metrics
+        with gr.Tab("📋 Metrics Summary"):
+            gr.Markdown("## Complete Performance Dashboard")
+
+            gr.Image(f"{IMAGE_DIR}/6_metrics_summary.png",
+                    show_label=False)
+
+            gr.Markdown("""
+            ### Metric Definitions:
+
+            **Regression Metrics:**
+            - **MAE**: Mean Absolute Error - average prediction error
+            - **RMSE**: Root Mean Squared Error - penalizes large errors more
+            - **Directional Accuracy**: % of times we predict the correct sign (up/down)
+
+            **Classification Metrics:**
+            - **Accuracy**: % of correct direction predictions
+            - **AUC-ROC**: Model's ability to distinguish UP from DOWN (0.5=random, 1.0=perfect)
+
+            **Trading Strategy:**
+            - **Strategy Return**: Performance if we only buy when model predicts UP
+            - **Buy & Hold**: Performance if we always stay invested
+            - **Outperformance**: Strategy minus buy & hold baseline
+            """)
+
+
+    gr.Markdown("""
+    ---
+    **Project**: Multi-Factor QQQ Prediction Using Financial and News Sentiment Data
+
+    **Authors**: Federico Mercurio & Margherita Santarossa | **Date**: December 2025
+
+    **Data Sources**: Yahoo Finance (QQQ, XLK, VIX) | FRED (Treasury, CPI) | NewsAPI + FinBERT
+
+    **Models**: XGBoost Regressor + Classifier | **Features**: 30 engineered features
+    """)
 
 
 if __name__ == "__main__":
-    demo.launch(share=False)
+    demo.launch(share=False, server_name="0.0.0.0", server_port=7860)
