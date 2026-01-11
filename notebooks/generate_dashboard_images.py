@@ -11,9 +11,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
-from utils.hopsworks_helpers import get_feature_store
+from utils.hopsworks_helpers import get_feature_store, get_model_registry
 import joblib
 import warnings
+import os
+import glob
+import shutil
 warnings.filterwarnings('ignore')
 
 # Set style
@@ -29,8 +32,41 @@ print("="*60)
 
 # Load models
 print("\n1. Loading models...")
-regressor = joblib.load('../models/qqq_regressor.pkl')
-classifier = joblib.load('../models/qqq_classifier.pkl')
+
+# Create models directory if it doesn't exist
+os.makedirs('../models', exist_ok=True)
+
+regressor_path = '../models/qqq_regressor.pkl'
+classifier_path = '../models/qqq_classifier.pkl'
+
+# Download from Hopsworks Model Registry if not present locally
+if not os.path.exists(regressor_path) or not os.path.exists(classifier_path):
+    print("   Connecting to Hopsworks Model Registry...")
+    mr = get_model_registry()
+
+    if not os.path.exists(regressor_path):
+        print("   Downloading regressor...")
+        reg_model = mr.get_model("qqq_return_regressor", version=1)
+        model_dir = reg_model.download()
+        pkl_files = glob.glob(f"{model_dir}/*.pkl")
+        if pkl_files:
+            shutil.copy(pkl_files[0], regressor_path)
+        else:
+            raise FileNotFoundError(f"No .pkl file found in {model_dir}")
+
+    if not os.path.exists(classifier_path):
+        print("   Downloading classifier...")
+        cls_model = mr.get_model("qqq_direction_classifier", version=1)
+        model_dir = cls_model.download()
+        pkl_files = glob.glob(f"{model_dir}/*.pkl")
+        if pkl_files:
+            shutil.copy(pkl_files[0], classifier_path)
+        else:
+            raise FileNotFoundError(f"No .pkl file found in {model_dir}")
+
+# Load models
+regressor = joblib.load(regressor_path)
+classifier = joblib.load(classifier_path)
 print("   ✓ Models loaded")
 
 # Connect to Hopsworks and load data
