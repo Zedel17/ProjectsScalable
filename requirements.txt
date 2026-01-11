@@ -1,5 +1,6 @@
 hopsworks==4.2.0
 pyarrow
+confluent-kafka
 xgboost
 scikit-learn
 pandas
