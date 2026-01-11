@@ -1,0 +1,94 @@
+name: Daily QQQ Prediction Pipeline
+
+on:
+  schedule:
+    # Run at 9 PM UTC (5 PM EST / 2 PM PST) on weekdays - after market close
+    - cron: '0 21 * * 1-5'
+
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install jupyter nbconvert
+
+      - name: Create .env file
+        run: |
+          echo "HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }}" >> .env
+          echo "HOPSWORKS_PROJECT_NAME=${{ secrets.HOPSWORKS_PROJECT_NAME }}" >> .env
+          echo "NEWS_API_KEY=${{ secrets.NEWS_API_KEY }}" >> .env
+          echo "FRED_API_KEY=${{ secrets.FRED_API_KEY }}" >> .env
+
+      - name: Step 1 - Backfill Yahoo Finance Data
+        run: |
+          cd notebooks
+          jupyter nbconvert --to notebook --execute 1_backfill_yahoo.ipynb --ExecutePreprocessor.timeout=600
+
+      - name: Step 2 - Backfill FRED Data
+        run: |
+          cd notebooks
+          jupyter nbconvert --to notebook --execute 2_backfill_fred.ipynb --ExecutePreprocessor.timeout=600
+
+      - name: Step 3 - Backfill News Data
+        run: |
+          cd notebooks
+          jupyter nbconvert --to notebook --execute 3_backfill_news.ipynb --ExecutePreprocessor.timeout=600
+
+      - name: Step 4 - Engineer Market Features
+        run: |
+          cd notebooks
+          jupyter nbconvert --to notebook --execute 4_market_features.ipynb --ExecutePreprocessor.timeout=600
+
+      - name: Step 5 - Engineer Macro & Sentiment Features
+        run: |
+          cd notebooks
+          jupyter nbconvert --to notebook --execute 5_macro_sentiment_features.ipynb --ExecutePreprocessor.timeout=600
+
+      - name: Step 6 - Create Feature View
+        run: |
+          cd notebooks
+          jupyter nbconvert --to notebook --execute 6_create_feature_view.ipynb --ExecutePreprocessor.timeout=600
+
+      - name: Step 7 - Generate Daily Inference
+        run: |
+          cd notebooks
+          jupyter nbconvert --to notebook --execute 8_daily_inference_FIXED.ipynb --ExecutePreprocessor.timeout=600
+
+      - name: Step 8 - Generate Dashboard Images
+        run: |
+          cd notebooks
+          python generate_dashboard_images.py
+
+      - name: Upload execution logs (if failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: execution-logs
+          path: notebooks/*.nbconvert.ipynb
+          retention-days: 7
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ Daily pipeline completed successfully"
+          echo "Latest prediction generated and saved to Hopsworks"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Daily pipeline failed - check logs"
