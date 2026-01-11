@@ -26,6 +26,9 @@ sns.set_palette("husl")
 # Output directory
 OUTPUT_DIR = '../dashboard/static/images'
 
+# Create output directory if it doesn't exist
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 print("="*60)
 print("GENERATING DASHBOARD IMAGES")
 print("="*60)
